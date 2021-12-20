@@ -1,0 +1,28 @@
+from gym_duckietown.tasks.task_solution import TaskSolution
+import numpy as np
+import cv2
+
+class DontCrushDuckieTaskSolution(TaskSolution):
+	def __init__(self, generated_task):
+		super().__init__(generated_task)
+
+	def solve(self):
+		env = self.generated_task['env']
+		# getting the initial picture
+		img, _, _, _ = env.step([0,0])
+	
+		condition = True
+		while condition:
+			img, reward, done, info = env.step([1, 0])
+			rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+			lower = np.array([0, 190, 250], dtype="uint8")
+			upper = np.array([1, 217, 255], dtype="uint8")
+			mask = cv2.inRange(rgb, lower, upper)
+			cnt, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+			x, y, w, h = cv2.boundingRect(cnt[0])
+			if w>50 and h>100:
+				condition = False
+				img, reward, done, info = env.step([0, 0])
+			else:
+				condition = True
+			env.render()
