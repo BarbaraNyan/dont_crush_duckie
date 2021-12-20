@@ -1,0 +1,65 @@
+from gym_duckietown.tasks.task_solution import TaskSolution
+import numpy as np
+import cv2
+
+class DontCrushDuckieTaskSolution(TaskSolution):
+    def __init__(self, generated_task):
+        super().__init__(generated_task)
+
+    def is_duckie_near(self, img):
+        rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        lower = np.array([0, 190, 250], dtype="uint8")
+        upper = np.array([1, 217, 255], dtype="uint8")
+        mask = cv2.inRange(rgb, lower, upper)
+        cnt, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if cnt:
+            x,y,w,h = cv2.boundingRect(cnt[0])
+            return True, h
+        else:
+            return False, 0
+
+    def change_lane(self, env, right_lane):
+        angle = 30
+        if not right_lane:
+            angle = -angle
+            for i in range(0, 5):
+                img, _, _, _ = env.step([1, 0])
+                env.render()
+        img, _, _, _ = env.step([0, angle])
+        env.render()
+        for i in range(0, 7):
+            img, _, _, _ = env.step([1, 0])
+            env.render()
+        img, _, _, _ = env.step([0, -angle])
+        env.render()
+        return img
+
+    def solve(self):
+        env = self.generated_task['env']
+        # getting the initial picture
+        img, _, _, _ = env.step([0,0])
+
+        condition = True
+        right_lane = True
+        while condition:
+            is_near, size = self.is_duckie_near(img)
+            if is_near:
+                # duckie in front of -> drive to the left lane
+                if size > 70:
+                    img = self.change_lane(env, right_lane)
+                    right_lane = False
+                # duckie in front of, but far away yet
+                else:
+                    img, _, _, _ = env.step([1, 0])
+                    env.render()
+            else:
+                # duckie is not in FOV -> return to the right lane
+                if not right_lane:
+                    img = self.change_lane(env, right_lane)
+                    right_lane = True
+                else:
+                    # drive at the end 10 cells
+                    for i in range(0, 10):
+                        img, _, _, _ = env.step([1, 0])
+                        env.render()
+                    condition = False
